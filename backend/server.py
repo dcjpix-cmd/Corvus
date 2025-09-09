@@ -356,6 +356,11 @@ async def get_contracts():
     
     for contract in contracts:
         parsed_contract = parse_from_mongo(contract)
+        
+        # Handle missing contact_email for old contracts
+        if 'contact_email' not in parsed_contract:
+            parsed_contract['contact_email'] = 'unknown@example.com'
+        
         contract_obj = Contract(**parsed_contract)
         
         # Auto-update status to expired if past due date
