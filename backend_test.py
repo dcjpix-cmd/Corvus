@@ -310,21 +310,36 @@ class ContractAPITester:
             404
         )
         
-        # Test creating contract with invalid data
+        # Test creating contract with missing email (should fail validation)
         invalid_data = {
-            "name": "",  # Empty name should fail validation
-            "client": "Test Client"
-            # Missing required fields
+            "name": "Test Contract",
+            "client": "Test Client",
+            "start_date": "2024-01-15",
+            "expiry_date": "2025-01-15"
+            # Missing required contact_email field
         }
         
         success2, _ = self.run_test(
-            "Create Invalid Contract",
+            "Create Contract Missing Email",
             "POST",
             "contracts",
             422  # Validation error
         )
         
-        return success1 and success2
+        # Test renewal with invalid contract ID
+        renewal_data = {
+            "new_expiry_date": "2025-12-31",
+            "contact_email": "test@example.com"
+        }
+        
+        success3, _ = self.run_test(
+            "Renew Non-existent Contract",
+            "POST",
+            "contracts/invalid-id/renew",
+            404
+        )
+        
+        return success1 and success2 and success3
 
 def main():
     print("🚀 Starting Contract Management API Tests")
