@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import axios from 'axios';
 import { format, differenceInDays, parseISO } from 'date-fns';
-import { Plus, Search, Calendar, AlertTriangle, Edit, Trash2, FileText, Sparkles } from 'lucide-react';
+import { Plus, Search, Calendar, AlertTriangle, Edit, Trash2, FileText, Sparkles, RotateCcw, Mail } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
@@ -22,16 +22,23 @@ function App() {
   const [contracts, setContracts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
   const [currentContract, setCurrentContract] = useState(null);
+  const [renewalContract, setRenewalContract] = useState(null);
   const [loading, setLoading] = useState(false);
   const [documentText, setDocumentText] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     client: '',
+    contact_email: '',
     start_date: '',
     expiry_date: '',
     status: 'Active'
+  });
+  const [renewalData, setRenewalData] = useState({
+    new_expiry_date: '',
+    contact_email: ''
   });
   
   const { toast } = useToast();
@@ -58,7 +65,8 @@ function App() {
   // Filter contracts based on search term
   const filteredContracts = contracts.filter(contract =>
     contract.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.client.toLowerCase().includes(searchTerm.toLowerCase())
+    contract.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.contact_email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Get expiring contracts (within 30 days)
@@ -77,12 +85,22 @@ function App() {
   };
 
   // Get status color
-  const getStatusColor = (expiryDate) => {
+  const getStatusColor = (expiryDate, status) => {
+    if (status === 'Expired') return 'bg-red-500';
     const days = differenceInDays(parseISO(expiryDate), new Date());
     if (days < 0) return 'bg-red-500';
     if (days <= 7) return 'bg-red-400';
     if (days <= 30) return 'bg-yellow-500';
     return 'bg-green-500';
+  };
+
+  // Get card border class
+  const getCardBorderClass = (expiryDate, status) => {
+    if (status === 'Expired') return 'ring-2 ring-red-400 shadow-red-100';
+    const days = differenceInDays(parseISO(expiryDate), new Date());
+    if (days < 0) return 'ring-2 ring-red-400 shadow-red-100';
+    if (days <= 30 && days >= 0) return 'ring-2 ring-yellow-400 shadow-yellow-100';
+    return '';
   };
 
   // Handle form submission
@@ -120,6 +138,34 @@ function App() {
     }
   };
 
+  // Handle contract renewal
+  const handleRenewalSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      await axios.post(`${API}/contracts/${renewalContract.id}/renew`, renewalData);
+      toast({
+        title: "Success",
+        description: "Contract renewed successfully"
+      });
+      
+      fetchContracts();
+      setIsRenewalModalOpen(false);
+      setRenewalContract(null);
+      setRenewalData({ new_expiry_date: '', contact_email: '' });
+    } catch (error) {
+      console.error('Error renewing contract:', error);
+      toast({
+        title: "Error",
+        description: "Failed to renew contract",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle delete
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this contract?')) return;
@@ -147,11 +193,22 @@ function App() {
     setFormData({
       name: contract.name,
       client: contract.client,
+      contact_email: contract.contact_email,
       start_date: contract.start_date,
       expiry_date: contract.expiry_date,
       status: contract.status
     });
     setIsModalOpen(true);
+  };
+
+  // Handle renewal
+  const handleRenewal = (contract) => {
+    setRenewalContract(contract);
+    setRenewalData({
+      new_expiry_date: '',
+      contact_email: contract.contact_email
+    });
+    setIsRenewalModalOpen(true);
   };
 
   // Reset form
@@ -160,6 +217,7 @@ function App() {
     setFormData({
       name: '',
       client: '',
+      contact_email: '',
       start_date: '',
       expiry_date: '',
       status: 'Active'
@@ -223,13 +281,30 @@ function App() {
     }
   };
 
+  // Trigger manual reminder check (for testing)
+  const triggerReminders = async () => {
+    try {
+      await axios.post(`${API}/send-reminders`);
+      toast({
+        title: "Success",
+        description: "Email reminders triggered successfully"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to trigger reminders",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-800 mb-2">KrijoTech Contract Management</h1>
-          <p className="text-slate-600">Manage your contracts with AI-powered document analysis</p>
+          <p className="text-slate-600">Manage your contracts with AI-powered document analysis and automated email reminders</p>
         </div>
 
         {/* Expiring Contracts Alert */}
@@ -247,145 +322,218 @@ function App() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
             <Input
-              placeholder="Search contracts by name or client..."
+              placeholder="Search contracts by name, client, or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
           </div>
           
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm} className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Contract
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button onClick={triggerReminders} variant="outline">
+              <Mail className="h-4 w-4 mr-2" />
+              Send Reminders
+            </Button>
             
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {currentContract ? 'Edit Contract' : 'Add New Contract'}
-                </DialogTitle>
-              </DialogHeader>
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={resetForm} className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Contract
+                </Button>
+              </DialogTrigger>
               
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Document Analysis Section */}
-                <div className="bg-blue-50 p-4 rounded-lg border">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="h-5 w-5 text-blue-600" />
-                    <h3 className="font-semibold text-blue-800">AI Document Analysis</h3>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    {currentContract ? 'Edit Contract' : 'Add New Contract'}
+                  </DialogTitle>
+                </DialogHeader>
+                
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Document Analysis Section */}
+                  <div className="bg-blue-50 p-4 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-semibold text-blue-800">AI Document Analysis</h3>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <Label htmlFor="document-text">Contract Document Text</Label>
+                      <Textarea
+                        id="document-text"
+                        placeholder="Paste your contract text here for AI analysis..."
+                        value={documentText}
+                        onChange={(e) => setDocumentText(e.target.value)}
+                        rows={4}
+                        className="resize-none"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleAnalyzeDocument}
+                        disabled={analyzing || !documentText.trim()}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        {analyzing ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4 mr-2" />
+                            Analyze Document
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   
-                  <div className="space-y-3">
-                    <Label htmlFor="document-text">Contract Document Text</Label>
-                    <Textarea
-                      id="document-text"
-                      placeholder="Paste your contract text here for AI analysis..."
-                      value={documentText}
-                      onChange={(e) => setDocumentText(e.target.value)}
-                      rows={4}
-                      className="resize-none"
-                    />
-                    <Button
-                      type="button"
-                      onClick={handleAnalyzeDocument}
-                      disabled={analyzing || !documentText.trim()}
-                      variant="outline"
-                      className="w-full"
+                  <Separator />
+                  
+                  {/* Contract Form */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="name">Contract Name *</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="client">Client Name *</Label>
+                      <Input
+                        id="client"
+                        value={formData.client}
+                        onChange={(e) => setFormData(prev => ({...prev, client: e.target.value}))}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <Label htmlFor="contact_email">Contact Email *</Label>
+                      <Input
+                        id="contact_email"
+                        type="email"
+                        value={formData.contact_email}
+                        onChange={(e) => setFormData(prev => ({...prev, contact_email: e.target.value}))}
+                        required
+                        placeholder="email@example.com"
+                      />
+                      <p className="text-sm text-slate-500 mt-1">This email will receive expiry reminders</p>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="start_date">Start Date *</Label>
+                      <Input
+                        id="start_date"
+                        type="date"
+                        value={formData.start_date}
+                        onChange={(e) => setFormData(prev => ({...prev, start_date: e.target.value}))}
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="expiry_date">Expiry Date *</Label>
+                      <Input
+                        id="expiry_date"
+                        type="date"
+                        value={formData.expiry_date}
+                        onChange={(e) => setFormData(prev => ({...prev, expiry_date: e.target.value}))}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3 pt-4">
+                    <Button type="submit" disabled={loading} className="flex-1">
+                      {loading ? 'Saving...' : (currentContract ? 'Update Contract' : 'Create Contract')}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsModalOpen(false)}
+                      className="flex-1"
                     >
-                      {analyzing ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="h-4 w-4 mr-2" />
-                          Analyze Document
-                        </>
-                      )}
+                      Cancel
                     </Button>
                   </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Renewal Modal */}
+        <Dialog open={isRenewalModalOpen} onOpenChange={setIsRenewalModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Renew Contract</DialogTitle>
+            </DialogHeader>
+            
+            {renewalContract && (
+              <form onSubmit={handleRenewalSubmit} className="space-y-4">
+                <div>
+                  <Label>Contract: {renewalContract.name}</Label>
+                  <p className="text-sm text-slate-600">Client: {renewalContract.client}</p>
                 </div>
                 
-                <Separator />
+                <div>
+                  <Label htmlFor="new_expiry_date">New Expiry Date *</Label>
+                  <Input
+                    id="new_expiry_date"
+                    type="date"
+                    value={renewalData.new_expiry_date}
+                    onChange={(e) => setRenewalData(prev => ({...prev, new_expiry_date: e.target.value}))}
+                    required
+                  />
+                </div>
                 
-                {/* Contract Form */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Contract Name *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="client">Client Name *</Label>
-                    <Input
-                      id="client"
-                      value={formData.client}
-                      onChange={(e) => setFormData(prev => ({...prev, client: e.target.value}))}
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="start_date">Start Date *</Label>
-                    <Input
-                      id="start_date"
-                      type="date"
-                      value={formData.start_date}
-                      onChange={(e) => setFormData(prev => ({...prev, start_date: e.target.value}))}
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="expiry_date">Expiry Date *</Label>
-                    <Input
-                      id="expiry_date"
-                      type="date"
-                      value={formData.expiry_date}
-                      onChange={(e) => setFormData(prev => ({...prev, expiry_date: e.target.value}))}
-                      required
-                    />
-                  </div>
+                <div>
+                  <Label htmlFor="renewal_contact_email">Contact Email</Label>
+                  <Input
+                    id="renewal_contact_email"
+                    type="email"
+                    value={renewalData.contact_email}
+                    onChange={(e) => setRenewalData(prev => ({...prev, contact_email: e.target.value}))}
+                    placeholder="Update contact email (optional)"
+                  />
                 </div>
                 
                 <div className="flex gap-3 pt-4">
                   <Button type="submit" disabled={loading} className="flex-1">
-                    {loading ? 'Saving...' : (currentContract ? 'Update Contract' : 'Create Contract')}
+                    {loading ? 'Renewing...' : 'Renew Contract'}
                   </Button>
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => setIsRenewalModalOpen(false)}
                     className="flex-1"
                   >
                     Cancel
                   </Button>
                 </div>
               </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Contracts Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredContracts.map((contract) => {
             const daysUntilExpiry = differenceInDays(parseISO(contract.expiry_date), new Date());
             const isExpiring = daysUntilExpiry <= 30 && daysUntilExpiry >= 0;
+            const isExpired = contract.status === 'Expired' || daysUntilExpiry < 0;
             
             return (
               <Card 
                 key={contract.id} 
-                className={`hover:shadow-lg transition-all duration-200 ${
-                  isExpiring ? 'ring-2 ring-yellow-400 shadow-yellow-100' : ''
-                } ${daysUntilExpiry < 0 ? 'ring-2 ring-red-400 shadow-red-100' : ''}`}
+                className={`hover:shadow-lg transition-all duration-200 ${getCardBorderClass(contract.expiry_date, contract.status)}`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
@@ -396,9 +544,10 @@ function App() {
                       <CardDescription className="text-slate-600">
                         {contract.client}
                       </CardDescription>
+                      <p className="text-xs text-slate-500 mt-1">{contract.contact_email}</p>
                     </div>
                     <Badge 
-                      className={`text-white ${getStatusColor(contract.expiry_date)}`}
+                      className={`text-white ${getStatusColor(contract.expiry_date, contract.status)}`}
                     >
                       {contract.status}
                     </Badge>
@@ -417,7 +566,7 @@ function App() {
                     
                     <div className="flex items-center justify-between">
                       <span className={`font-medium ${
-                        daysUntilExpiry < 0 ? 'text-red-600' : 
+                        isExpired ? 'text-red-600' : 
                         daysUntilExpiry <= 7 ? 'text-red-500' :
                         daysUntilExpiry <= 30 ? 'text-yellow-600' : 'text-green-600'
                       }`}>
@@ -425,6 +574,16 @@ function App() {
                       </span>
                       
                       <div className="flex gap-2">
+                        {isExpired && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleRenewal(contract)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            Renew
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
