@@ -245,7 +245,7 @@ def create_reminder_email(contract_name: str, client_name: str, expiry_date: str
         <div class="container">
             <div class="header">
                 <h1>🔔 Contract Expiry Reminder</h1>
-                <p>KrijoTech Contract Management System</p>
+                <p>Corvus Contract Management System</p>
             </div>
             
             <div class="content">
