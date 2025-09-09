@@ -1045,7 +1045,7 @@ function App() {
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                   <FileText className="h-4 w-4 text-white" />
                 </div>
-                <span className="font-semibold">KrijoTech Contract Management</span>
+                <span className="font-semibold">Corvus Contract Management System</span>
               </div>
               
               <div className="flex items-center justify-center gap-6 text-sm text-slate-500">
