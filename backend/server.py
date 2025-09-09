@@ -94,7 +94,7 @@ class ContractCreate(BaseModel):
     contact_email: EmailStr
     start_date: date
     expiry_date: date
-    status: str = Field(default="Active", regex="^(Active|Expired|Renewed)$")
+    status: str = Field(default="Active", pattern="^(Active|Expired|Renewed)$")
 
     @validator('expiry_date')
     def expiry_after_start(cls, v, values):
