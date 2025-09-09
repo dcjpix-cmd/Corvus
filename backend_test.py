@@ -151,23 +151,91 @@ class ContractAPITester:
         )
 
     def test_update_contract(self):
-        """Test updating a contract"""
+        """Test updating a contract with email"""
         if not self.created_contract_id:
             print("❌ Skipping update test - no contract ID available")
             return False
             
         update_data = {
             "name": "Updated Test Service Agreement",
+            "contact_email": "updated@example.com",
             "status": "Renewed"
         }
         
-        return self.run_test(
-            "Update Contract",
+        success, response = self.run_test(
+            "Update Contract with Email",
             "PUT",
             f"contracts/{self.created_contract_id}",
             200,
             data=update_data
         )
+        
+        if success:
+            # Verify email was updated
+            if response.get('contact_email') == update_data['contact_email']:
+                print("   ✅ Email field updated correctly")
+            else:
+                print(f"   ⚠️  Email update issue: expected {update_data['contact_email']}, got {response.get('contact_email')}")
+        
+        return success
+
+    def test_contract_renewal(self):
+        """Test contract renewal endpoint"""
+        if not self.expired_contract_id:
+            print("❌ Skipping renewal test - no expired contract ID available")
+            return False
+            
+        # Set new expiry date to 1 year from now
+        new_expiry = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d')
+        renewal_data = {
+            "new_expiry_date": new_expiry,
+            "contact_email": "renewed@example.com"
+        }
+        
+        success, response = self.run_test(
+            "Renew Expired Contract",
+            "POST",
+            f"contracts/{self.expired_contract_id}/renew",
+            200,
+            data=renewal_data
+        )
+        
+        if success:
+            # Verify renewal worked correctly
+            if response.get('status') == 'Active':
+                print("   ✅ Contract status reset to Active")
+            else:
+                print(f"   ⚠️  Expected 'Active' status after renewal, got '{response.get('status')}'")
+                
+            if response.get('expiry_date') == new_expiry:
+                print("   ✅ Expiry date updated correctly")
+            else:
+                print(f"   ⚠️  Expiry date issue: expected {new_expiry}, got {response.get('expiry_date')}")
+                
+            if response.get('contact_email') == renewal_data['contact_email']:
+                print("   ✅ Contact email updated during renewal")
+            else:
+                print(f"   ⚠️  Email issue: expected {renewal_data['contact_email']}, got {response.get('contact_email')}")
+        
+        return success
+
+    def test_send_reminders(self):
+        """Test manual reminder trigger endpoint"""
+        success, response = self.run_test(
+            "Trigger Email Reminders",
+            "POST",
+            "send-reminders",
+            200
+        )
+        
+        if success:
+            message = response.get('message', '')
+            if 'triggered' in message.lower():
+                print("   ✅ Reminder trigger endpoint working")
+            else:
+                print(f"   ⚠️  Unexpected response: {message}")
+        
+        return success
 
     def test_ai_document_analysis(self):
         """Test AI document analysis with sample contract text"""
