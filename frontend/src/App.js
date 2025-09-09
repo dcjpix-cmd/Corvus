@@ -1064,7 +1064,7 @@ function App() {
               </div>
               
               <div className="text-xs text-slate-400 space-y-1">
-                <p>© 2024 KrijoTech. Built with React, FastAPI, and AI technology.</p>
+                <p>© 2024 Corvus. Built with React, FastAPI, and AI technology.</p>
                 <p>Created with ❤️ for efficient contract management</p>
               </div>
             </div>
