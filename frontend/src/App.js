@@ -532,7 +532,7 @@ function App() {
                 <FileText className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-slate-800">KrijoTech Contract Management</h1>
+                <h1 className="text-4xl font-bold text-slate-800">Corvus Contract Management System</h1>
                 <p className="text-slate-600">AI-powered contract management with automated email reminders</p>
               </div>
             </div>
