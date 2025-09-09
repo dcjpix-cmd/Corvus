@@ -220,7 +220,12 @@ async def check_and_send_reminders():
         contracts = await db.contracts.find().to_list(None)
         
         for contract_data in contracts:
-            contract = Contract(**parse_from_mongo(contract_data))
+            # Handle missing contact_email for old contracts
+            if 'contact_email' not in contract_data:
+                contract_data['contact_email'] = 'unknown@example.com'
+                
+            parsed_contract = parse_from_mongo(contract_data)
+            contract = Contract(**parsed_contract)
             
             # Calculate days until expiry
             days_until_expiry = (contract.expiry_date - today).days
@@ -235,6 +240,11 @@ async def check_and_send_reminders():
                     should_send_reminder = True
             
             if should_send_reminder:
+                # Skip sending to unknown email addresses
+                if contract.contact_email == 'unknown@example.com':
+                    logging.info(f"Skipping email for contract {contract.name} - no valid email")
+                    continue
+                    
                 # Create and send reminder email
                 subject = f"Contract Expiry Reminder: {contract.name}"
                 if days_until_expiry <= 0:
@@ -262,6 +272,8 @@ async def check_and_send_reminders():
                         {"$set": {"last_reminder_sent": datetime.now(timezone.utc).isoformat()}}
                     )
                     logging.info(f"Reminder sent for contract: {contract.name}")
+                else:
+                    logging.error(f"Failed to send reminder for contract: {contract.name}")
                 
                 # Update status to expired if past due
                 if days_until_expiry <= 0 and contract.status != "Expired":
