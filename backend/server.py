@@ -114,7 +114,7 @@ class ContractUpdate(BaseModel):
     contact_email: Optional[EmailStr] = None
     start_date: Optional[date] = None
     expiry_date: Optional[date] = None
-    status: Optional[str] = Field(None, regex="^(Active|Expired|Renewed)$")
+    status: Optional[str] = Field(None, pattern="^(Active|Expired|Renewed)$")
 
     @validator('name', 'client')
     def not_empty(cls, v):
