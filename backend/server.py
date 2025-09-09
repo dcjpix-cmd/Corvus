@@ -168,7 +168,7 @@ async def analyze_document(request: DocumentAnalysisRequest):
         chat = LlmChat(
             api_key=os.environ.get('EMERGENT_LLM_KEY'),
             session_id=f"contract-analysis-{uuid.uuid4()}",
-            system_message="You are an AI assistant that extracts contract information from documents. Return only valid JSON responses."
+            system_message="You are an AI assistant that extracts contract information from documents. You must respond with valid JSON only."
         ).with_model("gemini", "gemini-2.0-flash")
         
         # Create analysis prompt
@@ -178,19 +178,39 @@ async def analyze_document(request: DocumentAnalysisRequest):
         Contract Text:
         {request.document_text}
         
-        Please respond with ONLY a JSON object containing:
-        - "contractDate": the contract start date in YYYY-MM-DD format
-        - "contractTenure": the contract duration (e.g., "1 year", "6 months", "24 months")
+        You MUST respond with ONLY a valid JSON object in this exact format:
+        {{
+            "contractDate": "YYYY-MM-DD",
+            "contractTenure": "X years" or "X months"
+        }}
         
-        If you cannot find this information, set the values to null.
+        If you cannot find the start date, use null for contractDate.
+        If you cannot find the tenure, use null for contractTenure.
+        
+        Do not include any other text, explanations, or formatting. Only return the JSON object.
         """
         
         user_message = UserMessage(text=prompt)
         response = await chat.send_message(user_message)
         
+        logging.info(f"AI Response: {response}")
+        
+        # Clean the response - remove any markdown formatting or extra text
+        cleaned_response = response.strip()
+        if cleaned_response.startswith('```json'):
+            cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
+        elif cleaned_response.startswith('```'):
+            cleaned_response = cleaned_response.replace('```', '').strip()
+            
+        # Try to find JSON in the response
+        import re
+        json_match = re.search(r'\{.*\}', cleaned_response, re.DOTALL)
+        if json_match:
+            cleaned_response = json_match.group()
+        
         # Parse the response
         try:
-            response_data = json.loads(response)
+            response_data = json.loads(cleaned_response)
             contract_date = response_data.get('contractDate')
             contract_tenure = response_data.get('contractTenure')
             
@@ -204,11 +224,74 @@ async def analyze_document(request: DocumentAnalysisRequest):
                 contract_tenure=contract_tenure,
                 expiry_date=expiry_date
             )
-        except json.JSONDecodeError:
-            # If response is not valid JSON, try to extract information manually
-            return DocumentAnalysisResponse(
-                error="Could not parse AI response. Please try again or enter dates manually."
-            )
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON parsing error: {e}, Response was: {cleaned_response}")
+            # Try to extract information manually using regex
+            contract_date = None
+            contract_tenure = None
+            
+            # Look for dates in the document text
+            date_patterns = [
+                r'\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b',
+                r'\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b',
+                r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b'
+            ]
+            
+            for pattern in date_patterns:
+                match = re.search(pattern, request.document_text, re.IGNORECASE)
+                if match:
+                    try:
+                        date_str = match.group(1)
+                        # Try to parse and convert to ISO format
+                        from datetime import datetime
+                        if '/' in date_str:
+                            if len(date_str.split('/')[2]) == 4:  # MM/DD/YYYY
+                                parsed_date = datetime.strptime(date_str, '%m/%d/%Y')
+                            else:  # DD/MM/YY
+                                parsed_date = datetime.strptime(date_str, '%d/%m/%y')
+                        elif '-' in date_str:
+                            parsed_date = datetime.strptime(date_str, '%Y-%m-%d')
+                        else:  # Month DD, YYYY
+                            parsed_date = datetime.strptime(date_str, '%B %d, %Y')
+                        
+                        contract_date = parsed_date.strftime('%Y-%m-%d')
+                        break
+                    except:
+                        continue
+            
+            # Look for tenure information
+            tenure_patterns = [
+                r'(\d+)\s*year[s]?',
+                r'(\d+)\s*month[s]?',
+                r'period\s+of\s+(\d+)\s*year[s]?',
+                r'term.*?(\d+)\s*year[s]?'
+            ]
+            
+            for pattern in tenure_patterns:
+                match = re.search(pattern, request.document_text, re.IGNORECASE)
+                if match:
+                    number = match.group(1)
+                    if 'year' in pattern:
+                        contract_tenure = f"{number} years" if int(number) > 1 else f"{number} year"
+                    else:
+                        contract_tenure = f"{number} months" if int(number) > 1 else f"{number} month"
+                    break
+            
+            # Calculate expiry date if we have both
+            expiry_date = None
+            if contract_date and contract_tenure:
+                expiry_date = calculate_expiry_date(contract_date, contract_tenure)
+            
+            if contract_date or contract_tenure:
+                return DocumentAnalysisResponse(
+                    contract_date=contract_date,
+                    contract_tenure=contract_tenure,
+                    expiry_date=expiry_date
+                )
+            else:
+                return DocumentAnalysisResponse(
+                    error="Could not extract contract information from the document."
+                )
             
     except Exception as e:
         logging.error(f"Document analysis error: {str(e)}")
