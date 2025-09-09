@@ -35,7 +35,7 @@ except Exception as e:
 
 # Create the main app without a prefix
 app = FastAPI(
-    title="KrijoTech Contract Management API",
+    title="Corvus Contract Management System API",
     description="AI-powered contract management with automated email reminders",
     version="1.0.0"
 )
