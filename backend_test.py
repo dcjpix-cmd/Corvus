@@ -116,8 +116,26 @@ class ContractAPITester:
         return success
 
     def test_get_contracts(self):
-        """Test getting all contracts"""
-        return self.run_test("Get All Contracts", "GET", "contracts", 200)
+        """Test getting all contracts and verify status auto-update"""
+        success, response = self.run_test("Get All Contracts", "GET", "contracts", 200)
+        
+        if success and isinstance(response, list):
+            print(f"   Found {len(response)} contracts")
+            
+            # Check if expired contract status was auto-updated
+            if self.expired_contract_id:
+                expired_contract = next((c for c in response if c['id'] == self.expired_contract_id), None)
+                if expired_contract:
+                    if expired_contract['status'] == 'Expired':
+                        print("   ✅ Expired contract status auto-updated correctly")
+                    else:
+                        print(f"   ⚠️  Expected 'Expired' status, got '{expired_contract['status']}'")
+            
+            # Verify email fields are present
+            contracts_with_email = [c for c in response if 'contact_email' in c]
+            print(f"   Contracts with email field: {len(contracts_with_email)}/{len(response)}")
+        
+        return success
 
     def test_get_single_contract(self):
         """Test getting a single contract by ID"""
