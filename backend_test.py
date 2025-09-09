@@ -342,8 +342,9 @@ class ContractAPITester:
         return success1 and success2 and success3
 
 def main():
-    print("🚀 Starting Contract Management API Tests")
-    print("=" * 50)
+    print("🚀 Starting Enhanced Contract Management API Tests")
+    print("Testing new email integration and renewal features")
+    print("=" * 60)
     
     tester = ContractAPITester()
     
@@ -351,9 +352,12 @@ def main():
     tests = [
         tester.test_health_check,
         tester.test_create_contract,
+        tester.test_create_expired_contract,
         tester.test_get_contracts,
         tester.test_get_single_contract,
         tester.test_update_contract,
+        tester.test_contract_renewal,
+        tester.test_send_reminders,
         tester.test_ai_document_analysis,
         tester.test_delete_contract,
         tester.test_error_handling
@@ -366,7 +370,7 @@ def main():
             print(f"❌ Test failed with exception: {str(e)}")
     
     # Print final results
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 60)
     print(f"📊 Final Results: {tester.tests_passed}/{tester.tests_run} tests passed")
     
     if tester.tests_passed == tester.tests_run:
