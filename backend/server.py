@@ -71,7 +71,7 @@ class Contract(BaseModel):
     contact_email: EmailStr
     start_date: date
     expiry_date: date
-    status: str = Field(default="Active", regex="^(Active|Expired|Renewed)$")
+    status: str = Field(default="Active", pattern="^(Active|Expired|Renewed)$")
     last_reminder_sent: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
