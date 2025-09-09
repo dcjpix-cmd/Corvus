@@ -428,14 +428,20 @@ function App() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleEdit(contract)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(contract);
+                          }}
                         >
                           <Edit className="h-3 w-3" />
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(contract.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(contract.id);
+                          }}
                           className="hover:bg-red-50 hover:border-red-200"
                         >
                           <Trash2 className="h-3 w-3" />
