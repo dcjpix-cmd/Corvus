@@ -298,7 +298,7 @@ def create_reminder_email(contract_name: str, client_name: str, expiry_date: str
                 
                 <p style="font-size: 16px; line-height: 1.6; color: #374151;">
                     Best regards,<br>
-                    <strong>KrijoTech Contract Management System</strong>
+                    <strong>Corvus Contract Management System</strong>
                 </p>
             </div>
             
