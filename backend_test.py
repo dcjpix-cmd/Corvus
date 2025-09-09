@@ -60,26 +60,58 @@ class ContractAPITester:
         return self.run_test("Health Check", "GET", "", 200)
 
     def test_create_contract(self):
-        """Test contract creation"""
+        """Test contract creation with email field"""
         contract_data = {
             "name": "Test Service Agreement",
             "client": "Test Client Corp",
+            "contact_email": "test@example.com",
             "start_date": "2024-01-15",
             "expiry_date": "2025-01-15",
             "status": "Active"
         }
         
         success, response = self.run_test(
-            "Create Contract",
+            "Create Contract with Email",
             "POST",
             "contracts",
-            200,  # FastAPI typically returns 200 for successful POST, not 201
+            200,
             data=contract_data
         )
         
         if success and 'id' in response:
             self.created_contract_id = response['id']
             print(f"   Created contract ID: {self.created_contract_id}")
+            # Verify email field is included
+            if response.get('contact_email') == contract_data['contact_email']:
+                print("   ✅ Email field correctly saved")
+            else:
+                print(f"   ⚠️  Email field issue: expected {contract_data['contact_email']}, got {response.get('contact_email')}")
+        
+        return success
+
+    def test_create_expired_contract(self):
+        """Test creating an expired contract for renewal testing"""
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        contract_data = {
+            "name": "Expired Test Contract",
+            "client": "Expired Client Corp",
+            "contact_email": "expired@example.com",
+            "start_date": "2023-01-15",
+            "expiry_date": yesterday,
+            "status": "Active"  # Will be auto-updated to Expired
+        }
+        
+        success, response = self.run_test(
+            "Create Expired Contract",
+            "POST",
+            "contracts",
+            200,
+            data=contract_data
+        )
+        
+        if success and 'id' in response:
+            self.expired_contract_id = response['id']
+            print(f"   Created expired contract ID: {self.expired_contract_id}")
         
         return success
 
